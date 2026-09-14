@@ -27,3 +27,5 @@ Route::prefix('auth')->group(function () {
         Route::post('/refresh', [AuthController::class, 'refresh']);
     });
 });
+
+Route::post('/stripe/webhook', [PaymentController::class, 'webhook']);

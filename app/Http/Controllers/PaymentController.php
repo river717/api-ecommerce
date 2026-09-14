@@ -6,6 +6,7 @@ use App\Models\Order;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
 use Stripe\Stripe;
+use Illuminate\Http\Request;
 
 class PaymentController extends Controller
 {
@@ -39,6 +40,10 @@ class PaymentController extends Controller
         $paymentIntent = \Stripe\PaymentIntent::create([
             'amount' => (int) round($order->total * 100),
             'currency' => 'usd',
+            'automatic_payment_methods' => [
+                'enabled' => true,
+                'allow_redirects' => 'never',
+            ],
             'metadata' => [
                 'order_id' => $order->id,
                 'user_id' => $order->user_id,
@@ -56,6 +61,51 @@ class PaymentController extends Controller
             'message' => 'PaymentIntent created successfully.',
             'payment_intent_id' => $payment->stripe_payment_intent_id,
             'client_secret' => $paymentIntent->client_secret,
+        ]);
+    }
+
+    public function webhook(Request $request): JsonResponse
+    {
+        $payload = $request->getContent();
+        $signature = $request->header('Stripe-Signature');
+
+        try {
+            $event = \Stripe\Webhook::constructEvent(
+                $payload,
+                $signature,
+                config('services.stripe.webhook_secret')
+            );
+        } catch (\UnexpectedValueException $e) {
+            return response()->json([
+                'message' => 'Invalid payload.',
+            ], 400);
+        } catch (\Stripe\Exception\SignatureVerificationException $e) {
+            return response()->json([
+                'message' => 'Invalid signature.',
+            ], 400);
+        }
+
+        if ($event->type === 'payment_intent.succeeded') {
+            $paymentIntent = $event->data->object;
+
+            $payment = \App\Models\Payment::where(
+                'stripe_payment_intent_id',
+                $paymentIntent->id
+            )->first();
+
+            if ($payment) {
+                $payment->update([
+                    'status' => 'succeeded',
+                ]);
+
+                $payment->order()->update([
+                    'status' => 'paid',
+                ]);
+            }
+        }
+
+        return response()->json([
+            'message' => 'Webhook received successfully.',
         ]);
     }
 }
