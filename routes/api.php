@@ -15,6 +15,7 @@ Route::middleware('auth:api')->group(function () {
     Route::delete('/products/{product}', [ProductController::class, 'destroy']);
     Route::post('/orders', [OrderController::class, 'store']);
     Route::post('/orders/{order}/payment', [PaymentController::class, 'store']);
+    Route::get('/orders', [OrderController::class, 'index']);
 });
 
 Route::prefix('auth')->group(function () {
