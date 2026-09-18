@@ -8,10 +8,27 @@ use App\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use OpenApi\Attributes as OA;
 
 class OrderController extends Controller
 {
     //Ordenes de un usuario
+    #[OA\Get(
+        path: '/api/orders',
+        summary: 'Get authenticated user order history',
+        tags: ['Orders'],
+        security: [['bearerAuth' => []]],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Order history retrieved successfully'
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthenticated'
+            )
+        ]
+    )]
     public function index(): JsonResponse
     {
         $orders = Order::where('user_id', auth()->id())
@@ -27,6 +44,55 @@ class OrderController extends Controller
         ]);
     }
 
+    #[OA\Post(
+        path: '/api/orders',
+        summary: 'Create a new order',
+        tags: ['Orders'],
+        security: [['bearerAuth' => []]],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['items'],
+                properties: [
+                    new OA\Property(
+                        property: 'items',
+                        type: 'array',
+                        minItems: 1,
+                        items: new OA\Items(
+                            type: 'object',
+                            required: ['product_id', 'quantity'],
+                            properties: [
+                                new OA\Property(
+                                    property: 'product_id',
+                                    type: 'integer',
+                                    example: 2
+                                ),
+                                new OA\Property(
+                                    property: 'quantity',
+                                    type: 'integer',
+                                    example: 2
+                                ),
+                            ]
+                        )
+                    ),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(
+                response: 201,
+                description: 'Order created successfully'
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthenticated'
+            ),
+            new OA\Response(
+                response: 422,
+                description: 'Validation error or insufficient stock'
+            )
+        ]
+    )]
     public function store(StoreOrderRequest $request): JsonResponse
     {
         $validated = $request->validated();

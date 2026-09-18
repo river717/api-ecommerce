@@ -7,9 +7,45 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
 use Stripe\Stripe;
 use Illuminate\Http\Request;
+use OpenApi\Attributes as OA;
 
 class PaymentController extends Controller
 {
+
+    #[OA\Post(
+        path: '/api/orders/{order}/payment',
+        summary: 'Create a Stripe PaymentIntent for an order',
+        tags: ['Payments'],
+        security: [['bearerAuth' => []]],
+        parameters: [
+            new OA\Parameter(
+                name: 'order',
+                description: 'Order ID',
+                in: 'path',
+                required: true,
+                schema: new OA\Schema(type: 'integer'),
+                example: 3
+            )
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'PaymentIntent created successfully'
+            ),
+            new OA\Response(
+                response: 401,
+                description: 'Unauthenticated'
+            ),
+            new OA\Response(
+                response: 403,
+                description: 'User is not allowed to pay this order'
+            ),
+            new OA\Response(
+                response: 422,
+                description: 'Order cannot be paid'
+            )
+        ]
+    )]
     public function store(Order $order): JsonResponse
     {
         if ($order->user_id !== auth()->id()) {
@@ -64,6 +100,28 @@ class PaymentController extends Controller
         ]);
     }
 
+    #[OA\Post(
+        path: '/api/stripe/webhook',
+        summary: 'Receive Stripe webhook events',
+        tags: ['Payments'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                type: 'object',
+                description: 'Stripe webhook event payload'
+            )
+        ),
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Webhook received successfully'
+            ),
+            new OA\Response(
+                response: 400,
+                description: 'Invalid payload or signature'
+            )
+        ]
+    )]
     public function webhook(Request $request): JsonResponse
     {
         $payload = $request->getContent();
